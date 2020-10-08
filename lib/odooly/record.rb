@@ -3,8 +3,6 @@ class Odooly
 
   class Record
 
-    @@fields = {}
-
     attr_reader :id
 
     def initialize(odooly:, name:, id:)
@@ -13,7 +11,7 @@ class Odooly
       @name = name
       @id = id
 
-      @fields = @@fields[name] ||= odooly[name].fields
+      @fields = odooly.fields(name)
     end
 
     def read(names=nil)

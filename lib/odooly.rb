@@ -23,6 +23,7 @@ class Odooly
     @password = password
     @database = database
     @debug = debug
+    @fields = {}
     authenticate()
   end
 
@@ -209,8 +210,30 @@ class Odooly
     Object.new(odooly: self, name: name)
   end
 
+  def fields(name)
+    @fields[name] ||= self[name].fields
+  end
+
   def inspect
     "<%s %s@%s>" % [ self.class.to_s, @username, @database ]
+  end
+
+  class << self
+
+    def configure(*args)
+      @@odooly = new(*args)
+    end
+
+    def reset
+      raise Error, "Not configured. Use #{self.to_s}.configure() first" unless defined?(@@odooly)
+      @fields = {}
+      @model_names = nil
+    end
+
+    def [](name)
+      raise Error, "Not configured. Use #{self.to_s}.configure() first" unless defined?(@@odooly)
+      @@odooly[name]
+    end
   end
 
 end
