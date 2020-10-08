@@ -144,9 +144,7 @@ class Odooly
     }
     url = @url.dup
     url.path = '/xmlrpc/object'
-    @response = Net::HTTP.post(url, xml, header)
-    puts @response.get_fields('set-cookie').inspect
-    @response
+    Net::HTTP.post(url, xml, header)
   end
 
   def authenticate(load_object_names: true)
@@ -167,9 +165,6 @@ class Odooly
       @context = result['context']
 
       # The session ID may have already been set as a cookie.
-      if @session_id
-        puts "Session already set"
-      end
       @session_id ||= result['session_id']
       if load_object_names
         @model_names ||= self['ir.model'].search([]).model

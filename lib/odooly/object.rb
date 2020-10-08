@@ -2,6 +2,7 @@ class Odooly
 
   class Object
 
+
     def initialize(odooly:, name:)
       @odooly = odooly
       @object_name = name

@@ -7,4 +7,5 @@ class Odooly
   AuthenticationError = Class.new(Exception)
   AccessDenied = Class.new(Exception)
   NotFound = Class.new(Exception)
+  NotImplemented = Class.new(Exception)
 end
