@@ -9,20 +9,20 @@ require 'odooly/record_list'
 require 'odooly/exception'
 class Odooly
 
+  attr_accessor :debug
   attr_reader :uid
   attr_reader :database
   attr_reader :username
 
-  def initialize(scheme: 'https', host:, port: 8069, username:, password:, database:)
+  def initialize(scheme: 'https', host:, port: 8069, username:, password:, database:, debug:false)
     raise ArgumentError, 'Invalid scheme' unless ['http', 'https'].include?(scheme)
     raise ArgumentError, 'invalid port' unless port.is_a?(Integer) and port.between?(1, 65535)
     @url = URI("%s://%s:%s/jsonrpc" % [scheme, host, port])
     @username = username
     @password = password
     @database = database
+    @debug = debug
     authenticate()
-    @model_names = [ 'ir.model' ]
-    @model_names = self['ir.model'].search([]).model
   end
 
   def server_version
@@ -38,8 +38,6 @@ class Odooly
   end
 
   def request_xml(path:, data:)
-    url = @url.dup
-    url.path = path
     header = {
       'Content-Type' => 'text/xml; charset=utf-8',
       'Accept' => '*/*',
@@ -47,7 +45,10 @@ class Odooly
     if @session_id
       header['Cookie'] = 'sessionid=%s' % @session_id
     end
-    http_response = Net::HTTP.post(url, data, header)
+    http = Net::HTTP.new(@url.host, port=@url.port)
+    http.use_ssl = (@url.scheme == 'https')
+    http.set_debug_output($stderr) if @debug
+    http_response = http.post(path, data, header)
     xml =  Nokogiri::XML.parse(http_response.body)
     response_node = xml > 'methodResponse'
     if response_node.empty?
@@ -62,8 +63,11 @@ class Odooly
         h[name] = (node > 'value').text unless name == ''
         h
       end
-      if fault_data['faultCode'].to_s.index('Record not found')
-        raise Odooly::NotFound, fault_data['faultCode']
+      fault_code = fault_data['faultCode'].to_s
+      if fault_code.index('Record not found')
+        raise Odooly::NotFound, fault_code
+      elsif fault_code == 'AccessDenied'
+        raise Odooly::AccessDenied, fault_code
       end
       raise Odooly::Error, fault_data['faultCode'] #, fault_data
     end
@@ -72,8 +76,6 @@ class Odooly
   end
 
   def request_json(path:, data:)
-    url = @url.dup
-    url.path = path
     header = {
       'Content-Type' => 'application/json',
       'Accept' => '*/*',
@@ -81,7 +83,16 @@ class Odooly
     if @session_id
       header['Cookie'] = 'sessionid=%s;' % @session_id
     end
-    response = Net::HTTP.post(url, data, header)
+    http = Net::HTTP.new(@url.host, port=@url.port)
+    http.use_ssl = (@url.scheme == 'https')
+    http.set_debug_output($stderr) if @debug
+
+    response = http.post(path, data, header)
+    response.get_fields('set-cookie').each do |cookie|
+      key, val = cookie.split('=', 2)
+      @session_id = val.split(';', 2).first if key == 'sessionid'
+      puts "Session: #{@session_id}"
+    end
     return JSON.parse(response.body)
   end
 
@@ -98,7 +109,7 @@ class Odooly
 
   def execute(model:, method:, args: [])
     args = [ args ] unless args.is_a? Array
-    method_args = [ @database, 14, @username, model, method]
+    method_args = [ @database, @uid, @username, model, method]
     xml = Nokogiri::XML::Builder.new do |xml|
       xml.methodCall {
         xml.methodName 'execute_kw'
@@ -137,24 +148,56 @@ class Odooly
     url = @url.dup
     url.path = '/xmlrpc/object'
     @response = Net::HTTP.post(url, xml, header)
+    puts @response.get_fields('set-cookie').inspect
+    @response
   end
 
-  def authenticate
+  def authenticate(load_object_names: true)
     data = {
       "method" => "call",
       "params" => {
-        "db" => "behave",
-        "login" => "thom",
-        "password" => "thom",
+        "db" => @database,
+        "login" => username,
+        "password" => @password,
         "base_location" => nil
       }
     }.to_json
+    @session_id = nil
     response = request_json(path: '/web/session/authenticate', data: data)
-    result = response['result'] || {}
-    @uid = result['uid']
-    @session_id = result['session_id']
-    @context = result['context']
+    if response.dig('result', 'uid')
+      result = response['result']
+      @uid = result['uid']
+      @context = result['context']
+
+      # The session ID may have already been set as a cookie.
+      if @session_id
+        puts "Session already set"
+      end
+      @session_id ||= result['session_id']
+      if load_object_names
+        @model_names ||= self['ir.model'].search([]).model
+      end
+      return true
+    end
+
+    @uid = false
+    @session_id = ''
+    @context = ''
+    @model_names = nil
+
+    # When response['result']['result'] exists but is false, the authentication has failed
+    raise AuthenticationError if response.dig('result') && response['result'].key?('uid')
+
+    # Check for an 'error' with a 'fault_code' in the response
+    fault_code = response.dig('error', 'data', 'fault_code')
+    case fault_code
+    when /database .+ does not exist/
+      raise DatabaseError, fault_code
+    else
+      raise Error, fault_code
+    end
   end
+
 
   def invoke(model, method, *args)
     args = [DB, uid, PASS, model, method] + list(args)
@@ -163,7 +206,7 @@ class Odooly
 
 
   def [](name)
-    unless @model_names.include?(name)
+    if @model_names && !@model_names.include?(name)
       similar_names = @model_names.grep(Regexp.new(name))
       if similar_names.empty?
         raise(ArgumentError, 'Model not found: %s' % name.inspect)

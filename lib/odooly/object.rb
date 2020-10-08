@@ -65,6 +65,15 @@ class Odooly
       '<%s %s>' % [ self.class.to_s, @object_name ]
     end
 
+    def fields(names = nil)
+      if names.is_a?(String)
+        names = [ names ]
+      elsif names != nil && (!names.is_a?(Array) || names.empty? || names.find { |_| !_.is_a?(String)} != nil)
+        raise ArgumentError, 'argument must be nil or a String or an Array of String'
+      end
+      execute_kw(method: 'fields_get', args: names ? [ names ] : [])
+    end
+
     def method_missing(method_name, *args)
       args = [ args ] unless args.is_a? Array
       execute_kw(method: method_name.to_s, args: args)
@@ -142,7 +151,16 @@ class Odooly
           _to_xml(xml, args)
         }
       end.to_xml
-      method_response_xml = @odooly.request_xml(path: '/xmlrpc/object', data: xml)
+
+      begin
+        retry_count ||= 0
+        method_response_xml = @odooly.request_xml(path: '/xmlrpc/object', data: xml)
+      rescue AccessDenied
+        raise if retry_count > 0
+        @odooly.authenticate(load_object_names: false)
+        retry_count += 1
+        retry
+      end
       param_xml = method_response_xml.xpath('//params/param')
       rb_data = _to_ruby((param_xml > 'value')[0])
       return rb_data
