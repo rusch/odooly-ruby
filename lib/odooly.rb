@@ -13,6 +13,7 @@ class Odooly
   attr_reader :uid
   attr_reader :database
   attr_reader :username
+  attr_reader :password
 
   def initialize(scheme: 'https', host:, port: 8069, username:, password:, database:, debug:false)
     raise ArgumentError, 'Invalid scheme' unless ['http', 'https'].include?(scheme)
@@ -42,9 +43,6 @@ class Odooly
       'Content-Type' => 'text/xml; charset=utf-8',
       'Accept' => '*/*',
     }
-    if @session_id
-      header['Cookie'] = 'sessionid=%s' % @session_id
-    end
     http = Net::HTTP.new(@url.host, port=@url.port)
     http.use_ssl = (@url.scheme == 'https')
     http.set_debug_output($stderr) if @debug
@@ -80,7 +78,7 @@ class Odooly
       'Content-Type' => 'application/json',
       'Accept' => '*/*',
     }
-    if @session_id
+    if @json_session_id
       header['Cookie'] = 'sessionid=%s;' % @session_id
     end
     http = Net::HTTP.new(@url.host, port=@url.port)
@@ -90,8 +88,7 @@ class Odooly
     response = http.post(path, data, header)
     response.get_fields('set-cookie').each do |cookie|
       key, val = cookie.split('=', 2)
-      @session_id = val.split(';', 2).first if key == 'sessionid'
-      puts "Session: #{@session_id}"
+      @json_session_id = val.split(';', 2).first if key == 'sessionid'
     end
     return JSON.parse(response.body)
   end

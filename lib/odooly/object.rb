@@ -82,7 +82,7 @@ class Odooly
     private
 
     def execute_kw(method:, args: [])
-      method_args = [@odooly.database, @odooly.uid, @odooly.username, @object_name, method.to_s]
+      method_args = [@odooly.database, @odooly.uid, @odooly.password, @object_name, method.to_s]
       def _to_xml(xml, domain)
         case domain
         when Integer
@@ -152,15 +152,8 @@ class Odooly
         }
       end.to_xml
 
-      begin
-        retry_count ||= 0
-        method_response_xml = @odooly.request_xml(path: '/xmlrpc/object', data: xml)
-      rescue AccessDenied
-        raise if retry_count > 0
-        @odooly.authenticate(load_object_names: false)
-        retry_count += 1
-        retry
-      end
+      method_response_xml = @odooly.request_xml(path: '/xmlrpc/object', data: xml)
+
       param_xml = method_response_xml.xpath('//params/param')
       rb_data = _to_ruby((param_xml > 'value')[0])
       return rb_data
