@@ -21,17 +21,15 @@ class Odooly
         return field ? transform(value: values, field: field) : values
       end
 
-      values.collect do |name, value|
+      values.each do |name, value|
         field = @fields[name]
         values[name] = transform(value: value, field: field) if field
       end
-      return values
+      # return values
     end
 
     def method_missing(name, *args)
-      field = @fields[name.to_s]
-      raise NotImplemented, "RPC function call for records not implemented. (function: #{name})" unless field
-      value = read(name.to_s)
+      @fields[name.to_s] ? read(name.to_s): @odooly[@name].send(name, [ @id ], *args)
     end
 
     def inspect

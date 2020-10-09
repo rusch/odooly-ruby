@@ -25,7 +25,6 @@ class Odooly
         search_args += [ offset.to_i, limit.to_i ]
       end
       execute_kw(method: 'search_read', args: search_args)
-      # RecordList.new(odooly: @odooly, name: @object_name, data: response_data)
     end
 
     def read(ids, fields: nil)
@@ -47,6 +46,19 @@ class Odooly
       field ? (ids.is_a?(Array) ? result.collect { |_| _[field] } : result[field]) : result
     end
 
+    def write(ids, write_fields)
+      if ids.is_a?(Integer)
+        ids = [ ids ]
+      elsif (!ids.is_a?(Array) || ids.empty? || ids.find { |_| !_.is_a?(Integer)} != nil)
+        raise ArgumentError, 'argument must be an Integer or an Array of Integer'
+      end
+      unless write_fields.is_a?(Hash)
+        raise ArgumentError, 'write_fields must be a Hash'
+      end
+
+      execute_kw(method: 'write', args: [ids, write_fields])
+    end
+
     def browse(ids)
       if ids.is_a?(Integer)
         return Record.new(odooly: @odooly, name: @object_name, id: ids)
@@ -62,10 +74,6 @@ class Odooly
       execute_kw(method: 'read', args: [domain])
     end
 
-    def inspect
-      '<%s %s>' % [ self.class.to_s, @object_name ]
-    end
-
     def fields(names = nil)
       if names.is_a?(String)
         names = [ names ]
@@ -75,9 +83,29 @@ class Odooly
       execute_kw(method: 'fields_get', args: names ? [ names ] : [])
     end
 
+    def field(name)
+      if name.is_a? Symbol
+        name = name.to_s
+      elsif !name.is_a? String
+        raise ArgumentError, 'name must be String or Symbol'
+      end
+      @odooly.fields(@object_name)[name]
+    end
+
+    def field_selection(name)
+      field_data = field(name)
+      raise Error, "No such field (#{name.inspect}" unless field_data
+      raise Error, 'Not a selection' unless field_data['type'] == 'selection'
+      Hash[field_data['selection']]
+    end
+
     def method_missing(method_name, *args)
       args = [ args ] unless args.is_a? Array
       execute_kw(method: method_name.to_s, args: args)
+    end
+
+    def inspect
+      '<%s %s>' % [ self.class.to_s, @object_name ]
     end
 
     private
@@ -101,6 +129,12 @@ class Odooly
           end
         when Array
           xml.value { xml.array { xml.data { domain.each { |_| _to_xml(xml, _) } } } }
+        when Hash
+          xml.value { xml.struct { domain.each { |k,v| xml.member { xml.name k; _to_xml(xml, v) } } } }
+        when TrueClass
+          xml.value { xml.boolean '1' }
+        when FalseClass, NilClass
+          xml.value { xml.boolean '0' }
         else
           raise ArgumentError, "Invalid content: #{domain.inspect}"
         end
