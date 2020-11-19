@@ -10,7 +10,7 @@ class Odooly
 
     def search(domain, offset: nil, limit: nil)
       raise ArgumentError, 'domain must be an Array' unless domain.is_a? Array
-      search_args = [ domain ]
+      search_args = [ expand_string_filters(domain) ]
       if offset != nil or limit != nil
         search_args += [ offset.to_i, limit.to_i ]
       end
@@ -20,7 +20,7 @@ class Odooly
 
     def search_read(domain, offset: nil, limit: nil)
       raise ArgumentError, 'domain must be an Array' unless domain.is_a? Array
-      search_args = [ domain ]
+      search_args = [ expand_string_filters(domain) ]
       if offset != nil or limit != nil
         search_args += [ offset.to_i, limit.to_i ]
       end
@@ -117,16 +117,7 @@ class Odooly
         when Integer
           xml.value { xml.int domain }
         when String
-          if (Integer(domain) rescue false)
-            _to_xml(xml, domain.to_i)
-          else
-            domain_el = domain.strip.split(/\s*(!?=)\s*/, 2)
-            if domain_el.length == 3 && domain_el[0] != ''
-              _to_xml(xml, domain_el)
-            else
-              xml.value { xml.string domain }
-            end
-          end
+          (Integer(domain) rescue false) ? _to_xml(xml, domain.to_i) : xml.value { xml.string domain }
         when Array
           xml.value { xml.array { xml.data { domain.each { |_| _to_xml(xml, _) } } } }
         when Hash
@@ -194,6 +185,16 @@ class Odooly
       return rb_data
     end
 
+    def expand_string_filters(search_domain)
+      search_domain.collect do |condition|
+        if condition.is_a?(Array)
+          condition
+        else
+          el = condition.strip.split(/\s*(!?=)\s*/, 2)
+          (el.length == 3 && el[0] != '') ? el : condition
+        end
+      end
+    end
   end
 
 end
