@@ -1,28 +1,56 @@
 Odooly-Ruby
 ===========
 
+Lightweight library for browsing and manipulating Odoo / OpenERP data via the XMLRPC API.
+
 
 How to use
+------------
+
+Initialization can be done either in class context or by instantiating an object. The class context way may be advantageous in a Ruby on Rails appication.
+
+It is possible to us e both ways at the same time.
 
 ```ruby
-2.6.0 :001 > require 'odooly'
- => true
-2.6.0 :002 > odooly=Odooly.new(
-2.6.0 :003 >       scheme: 'http',
-2.6.0 :004 >       host: 'localhost',
-2.6.0 :005 >       port: 18069,
-2.6.0 :006 >       username: 'thom',
-2.6.0 :007 >       password: 'thom',
-2.6.0 :008 >       database: 'behave')
+Odooly.configure(scheme: 'http', host: 'localhost', port: 18069, username: 'thom', password: 'thom', database: 'behave')
+```
+
+or
+
+```ruby
+odooly=Odooly.new(scheme: 'http', host: 'localhost', port: 18069, username: 'thom', password: 'thom', database: 'behave')
+```
+
+
+Searching. After the initialization searching can be performed as shown in this exemplary irb session
+
+```ruby
+2.6.0 :001 > odooly=Odooly.new(scheme: 'http', host: 'localhost', port: 18069, username: 'thom', password: 'thom', database: 'behave')
  => <Odooly thom@behave>
-2.6.0 :009 > customers = odooly['res.partner'].search(['last_name=Simpson'])
- => <Odooly::RecordList 'res.partner,length=13'>
-2.6.0 :010 > customers.name
- => ["Lisa Simpson", "Bart Simpson", "Homer Simpson", "Lisa Simpson", "Bart Simpson", "Homer Simpson", "Lisa Simpson", "Bart Simpson", "Homer Simpson", "Abraham Simpson", "Lisa Simpson", "Bart Simpson", "Homer Simpson"]
-2.6.0 :011 > customers.read(['first_name', 'last_name'])
- => [{"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>463}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>462}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>461}, {"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>460}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>459}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>458}, {"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>457}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>456}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>455}, {"first_name"=>"Abraham", "last_name"=>"Simpson", "id"=>18}, {"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>13}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>12}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>11}]
+2.6.0 :002 > customers = odooly['res.partner'].search(['last_name=Simpson'])
+ => <Odooly::RecordList 'res.partner,[162, 161, 160, 18, 13, 12, 11]'>
+2.6.0 :003 > pp customers.name
+["Lisa Simpson",
+ "Bart Simpson",
+ "Homer Simpson",
+ "Abraham Simpson",
+ "Lisa Simpson",
+ "Bart Simpson",
+ "Homer Simpson"]
+ => ["Lisa Simpson", "Bart Simpson", "Homer Simpson", "Abraham Simpson", "Lisa Simpson", "Bart Simpson", "Homer Simpson"]
+2.6.0 :004 > customers.read(['first_name', 'last_name'])
+ => [{"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>162}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>161}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>160}, {"first_name"=>"Abraham", "last_name"=>"Simpson", "id"=>18}, {"first_name"=>"Lisa", "last_name"=>"Simpson", "id"=>13}, {"first_name"=>"Bart", "last_name"=>"Simpson", "id"=>12}, {"first_name"=>"Homer", "last_name"=>"Simpson", "id"=>11}]
+```
 
+Updating values is done as follows:
 
-2.6.0 :012 > odooly['wingo.contract.task'].add_comment_yaml({'task_id' => 156, 'comment' => "test123", user: 'dagobert.duck'}.to_yaml)
- => "reason_code: '0'\n"
+```ruby
+2.6.0 :005 > customers = odooly['res.partner'].search(['first_name=Abraham', 'last_name=Simpson'])[0]
+ => <Odooly::Record 'res.partner,18'>
+2.6.0 :006 > customer = odooly['res.partner'].search(['first_name=Abraham', 'last_name=Simpson'])[0]
+ => <Odooly::Record 'res.partner,18'>
+2.6.0 :007 > customer.write({'last_name': 'Lincoln'})
+ => true
+2.6.0 :008 > odooly['res.partner'].browse(18).name
+ => "Abraham Lincoln"
 ```
