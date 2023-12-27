@@ -220,8 +220,8 @@ class Odooly
 
   class << self
 
-    def configure(*args)
-      @@odooly = new(*args)
+    def configure(**kwargs)
+      @@odooly = new(**kwargs)
     end
 
     def reset
